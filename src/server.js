@@ -72,60 +72,187 @@ app.get('/plants/:id', async (req, res, next) => {
   }
 });
 
-app.post('/plants', async (req, res) => {
-  const {
-    name,
-    species = '',
-    location = '',
-    lastWatered = null,
-    notes = '',
-  } = req.body || {};
+const toTrimmedString = (value, defaultValue = '') => {
+  if (value == null) {
+    return defaultValue;
+  }
+  const trimmed = String(value).trim();
+  return trimmed.length === 0 ? defaultValue : trimmed;
+};
 
-  if (!name || typeof name !== 'string') {
-    res.status(400).json({ error: 'Plant name is required' });
-    return;
+const toNullableTrimmedString = (value) => {
+  if (value == null) {
+    return null;
+  }
+  const trimmed = String(value).trim();
+  return trimmed.length === 0 ? null : trimmed;
+};
+
+const toBoolean = (value) => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+  }
+  return Boolean(value);
+};
+
+const toInteger = (value, defaultValue = 0) => {
+  if (value == null) {
+    return defaultValue;
+  }
+  if (typeof value === 'string' && value.trim().length === 0) {
+    return defaultValue;
   }
 
-  const newPlant = {
-    id: crypto.randomUUID(),
-    name: name.trim(),
-    species: species ? String(species).trim() : '',
-    location: location ? String(location).trim() : '',
-    lastWatered: lastWatered ? String(lastWatered).trim() : null,
-    notes: notes ? String(notes).trim() : '',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.trunc(number) : defaultValue;
+};
+
+const sanitizeStageDates = (input) => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return {};
+  }
+
+  return Object.entries(input).reduce((acc, [stage, value]) => {
+    if (value == null) {
+      acc[stage] = null;
+      return acc;
+    }
+
+    const sanitizedValue = toTrimmedString(value, '');
+    acc[stage] = sanitizedValue.length === 0 ? null : sanitizedValue;
+    return acc;
+  }, {});
+};
+
+const normalizePlantPayload = (payload = {}, { requireName = true } = {}) => {
+  const {
+    name,
+    strainId = null,
+    stage = 'VEG',
+    stageDates = {},
+    notes = '',
+    cureOffsetDays = 0,
+    isArchived = false,
+    harvestTargetOverride = null,
+  } = payload;
+
+  if (requireName && (!name || typeof name !== 'string' || name.trim().length === 0)) {
+    throw new TypeError('Plant name is required');
+  }
+
+  const normalized = {
+    name: name == null ? undefined : toTrimmedString(name),
+    strainId: strainId == null ? null : toNullableTrimmedString(strainId),
+    stage: stage == null ? 'VEG' : toTrimmedString(stage, 'VEG'),
+    stageDates: sanitizeStageDates(stageDates),
+    notes: notes == null ? '' : toTrimmedString(notes, ''),
+    cureOffsetDays: toInteger(cureOffsetDays, 0),
+    isArchived: toBoolean(isArchived),
+    harvestTargetOverride: harvestTargetOverride == null
+      ? null
+      : toNullableTrimmedString(harvestTargetOverride),
   };
 
+  return normalized;
+};
+
+app.post('/plants', async (req, res) => {
   try {
+    const normalized = normalizePlantPayload(req.body || {});
+    const now = new Date().toISOString();
+    const newPlant = {
+      id: crypto.randomUUID(),
+      createdAt: now,
+      ...normalized,
+    };
+
     await store.createPlant(newPlant);
     res.status(201).json({ data: newPlant });
   } catch (error) {
+    if (error instanceof TypeError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     res.status(500).json({ error: 'Failed to create plant' });
   }
 });
 
 app.put('/plants/:id', async (req, res) => {
-  const updates = req.body || {};
-  const allowedFields = ['name', 'species', 'location', 'lastWatered', 'notes'];
-  const sanitizedUpdates = {};
+  const payload = req.body || {};
+  let sanitizedUpdates;
 
-  for (const field of allowedFields) {
-    if (Object.prototype.hasOwnProperty.call(updates, field)) {
-      const value = updates[field];
-      sanitizedUpdates[field] = value == null ? null : String(value).trim();
+  try {
+    sanitizedUpdates = normalizePlantPayload(
+      {
+        ...payload,
+        // Ensure optional fields can be intentionally cleared
+        strainId: Object.prototype.hasOwnProperty.call(payload, 'strainId')
+          ? payload.strainId
+          : undefined,
+        stageDates: Object.prototype.hasOwnProperty.call(payload, 'stageDates')
+          ? payload.stageDates
+          : undefined,
+        notes: Object.prototype.hasOwnProperty.call(payload, 'notes')
+          ? payload.notes
+          : undefined,
+        cureOffsetDays: Object.prototype.hasOwnProperty.call(payload, 'cureOffsetDays')
+          ? payload.cureOffsetDays
+          : undefined,
+        isArchived: Object.prototype.hasOwnProperty.call(payload, 'isArchived')
+          ? payload.isArchived
+          : undefined,
+        harvestTargetOverride: Object.prototype.hasOwnProperty.call(
+          payload,
+          'harvestTargetOverride',
+        )
+          ? payload.harvestTargetOverride
+          : undefined,
+      },
+      { requireName: false },
+    );
+  } catch (error) {
+    if (error instanceof TypeError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    res.status(500).json({ error: 'Failed to update plant' });
+    return;
+  }
+
+  const allowedKeys = [
+    'name',
+    'strainId',
+    'stage',
+    'stageDates',
+    'notes',
+    'cureOffsetDays',
+    'isArchived',
+    'harvestTargetOverride',
+  ];
+
+  const normalizedUpdates = {};
+  for (const key of allowedKeys) {
+    if (Object.prototype.hasOwnProperty.call(payload, key)) {
+      normalizedUpdates[key] = sanitizedUpdates[key];
     }
   }
 
-  if (Object.keys(sanitizedUpdates).length === 0) {
+  if (Object.keys(normalizedUpdates).length === 0) {
     res.status(400).json({ error: 'No valid fields provided for update' });
     return;
   }
 
-  sanitizedUpdates.updatedAt = new Date().toISOString();
-
   try {
-    const updatedPlant = await store.updatePlant(req.params.id, sanitizedUpdates);
+    const updatedPlant = await store.updatePlant(req.params.id, normalizedUpdates);
     if (!updatedPlant) {
       res.status(404).json({ error: 'Plant not found' });
       return;
@@ -183,59 +310,73 @@ app.get('/strains/:id', async (req, res, next) => {
   }
 });
 
-app.post('/strains', async (req, res) => {
-  const {
-    name,
-    type = '',
-    lineage = '',
-    notes = '',
-  } = req.body || {};
+const normalizeStrainPayload = (payload = {}, { requireName = true } = {}) => {
+  const { name, floweringDays = null, notes = '' } = payload;
 
-  if (!name || typeof name !== 'string') {
-    res.status(400).json({ error: 'Strain name is required' });
-    return;
+  if (requireName && (!name || typeof name !== 'string' || name.trim().length === 0)) {
+    throw new TypeError('Strain name is required');
   }
 
-  const now = new Date().toISOString();
-  const newStrain = {
-    id: crypto.randomUUID(),
-    name: name.trim(),
-    type: type ? String(type).trim() : '',
-    lineage: lineage ? String(lineage).trim() : '',
-    notes: notes ? String(notes).trim() : '',
-    createdAt: now,
-    updatedAt: now,
+  return {
+    name: name == null ? undefined : toTrimmedString(name),
+    floweringDays:
+      floweringDays == null ? null : toInteger(floweringDays, null),
+    notes: notes == null ? '' : toTrimmedString(notes, ''),
   };
+};
 
+app.post('/strains', async (req, res) => {
   try {
+    const normalized = normalizeStrainPayload(req.body || {});
+    const newStrain = {
+      id: crypto.randomUUID(),
+      ...normalized,
+    };
+
     await store.createStrain(newStrain);
     res.status(201).json({ data: newStrain });
   } catch (error) {
+    if (error instanceof TypeError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     res.status(500).json({ error: 'Failed to create strain' });
   }
 });
 
 app.put('/strains/:id', async (req, res) => {
-  const updates = req.body || {};
-  const allowedFields = ['name', 'type', 'lineage', 'notes'];
-  const sanitizedUpdates = {};
+  const payload = req.body || {};
+  let sanitizedUpdates;
 
-  for (const field of allowedFields) {
-    if (Object.prototype.hasOwnProperty.call(updates, field)) {
-      const value = updates[field];
-      sanitizedUpdates[field] = value == null ? null : String(value).trim();
+  try {
+    sanitizedUpdates = normalizeStrainPayload(payload, { requireName: false });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    res.status(500).json({ error: 'Failed to update strain' });
+    return;
+  }
+
+  const allowedKeys = ['name', 'floweringDays', 'notes'];
+  const normalizedUpdates = {};
+  for (const key of allowedKeys) {
+    if (Object.prototype.hasOwnProperty.call(payload, key)) {
+      normalizedUpdates[key] = sanitizedUpdates[key];
     }
   }
 
-  if (Object.keys(sanitizedUpdates).length === 0) {
+  if (Object.keys(normalizedUpdates).length === 0) {
     res.status(400).json({ error: 'No valid fields provided for update' });
     return;
   }
 
-  sanitizedUpdates.updatedAt = new Date().toISOString();
-
   try {
-    const updatedStrain = await store.updateStrain(req.params.id, sanitizedUpdates);
+    const updatedStrain = await store.updateStrain(
+      req.params.id,
+      normalizedUpdates,
+    );
     if (!updatedStrain) {
       res.status(404).json({ error: 'Strain not found' });
       return;
