@@ -4,14 +4,19 @@ This repository contains a lightweight RESTful backend for the Tracker plant man
 
 ## Features
 
-- Minimal Express-compatible server implementation that runs without external npm downloads.
+- Express-based REST server exposed via familiar middleware patterns.
 - CRUD endpoints for plants (`/plants`).
 - File-based JSON datastore to keep the application lightweight and easy to deploy.
 - Built-in CORS support for communication with the Tracker React front end.
 
 ## Getting Started
 
-1. **Install dependencies**: this project vendors a minimal Express-compatible module so no additional packages are required.
+1. **Install dependencies**:
+
+   ```bash
+   npm install
+   ```
+
 2. **Start the server**:
 
    ```bash

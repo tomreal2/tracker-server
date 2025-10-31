@@ -6,6 +6,9 @@
   "scripts": {
     "start": "node src/server.js"
   },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
   "keywords": [
     "plants",
     "tracker",
