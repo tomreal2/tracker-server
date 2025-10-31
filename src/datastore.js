@@ -30,6 +30,41 @@ class DataStore {
     await fs.writeFile(this.filePath, JSON.stringify(data, null, 2));
   }
 
+  async getState() {
+    const data = await this.read();
+    return data;
+  }
+
+  async replaceState(nextState) {
+    if (!nextState || typeof nextState !== 'object' || Array.isArray(nextState)) {
+      throw new TypeError('State payload must be an object');
+    }
+
+    const sanitized = {
+      ...nextState,
+    };
+    sanitized.plants = Array.isArray(nextState.plants) ? nextState.plants : [];
+
+    await this.write(sanitized);
+    return sanitized;
+  }
+
+  async updateState(partialState) {
+    if (!partialState || typeof partialState !== 'object' || Array.isArray(partialState)) {
+      throw new TypeError('State payload must be an object');
+    }
+
+    const current = await this.read();
+    const merged = { ...current, ...partialState };
+
+    if (Object.prototype.hasOwnProperty.call(partialState, 'plants')) {
+      merged.plants = Array.isArray(partialState.plants) ? partialState.plants : current.plants;
+    }
+
+    await this.write(merged);
+    return merged;
+  }
+
   async listPlants() {
     const data = await this.read();
     return data.plants;

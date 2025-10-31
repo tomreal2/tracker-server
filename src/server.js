@@ -15,6 +15,41 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+app.get('/state', async (req, res, next) => {
+  try {
+    const state = await store.getState();
+    res.json({ data: state });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/state', async (req, res, next) => {
+  try {
+    const savedState = await store.replaceState(req.body || {});
+    res.json({ data: savedState });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+app.patch('/state', async (req, res, next) => {
+  try {
+    const savedState = await store.updateState(req.body || {});
+    res.json({ data: savedState });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
 app.get('/plants', async (req, res, next) => {
   try {
     const plants = await store.listPlants();
@@ -119,6 +154,10 @@ app.options('/plants', (req, res) => {
 });
 
 app.options('/plants/:id', (req, res) => {
+  res.status(204).send('');
+});
+
+app.options('/state', (req, res) => {
   res.status(204).send('');
 });
 

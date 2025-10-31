@@ -5,6 +5,7 @@ This repository contains a lightweight RESTful backend for the Tracker plant man
 ## Features
 
 - Express-based REST server exposed via familiar middleware patterns.
+- App state endpoints (`/state`) for retrieving and persisting the Tracker UI snapshot.
 - CRUD endpoints for plants (`/plants`).
 - File-based JSON datastore to keep the application lightweight and easy to deploy.
 - Built-in CORS support for communication with the Tracker React front end.
@@ -31,6 +32,15 @@ All endpoints return JSON responses.
 
 ### `GET /health`
 Returns a simple health check payload.
+
+### `GET /state`
+Returns the full persisted application state, including the list of plants.
+
+### `PUT /state`
+Replaces the stored state. The request body should contain an object shaped like the Tracker application's state tree (at minimum, provide a `plants` array).
+
+### `PATCH /state`
+Merges a partial state update into the stored data. Provide only the keys that need to change.
 
 ### `GET /plants`
 Retrieves the full list of plants.
