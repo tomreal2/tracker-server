@@ -13,7 +13,7 @@ class DataStore {
     try {
       await fs.access(this.filePath);
     } catch (error) {
-      const initialData = { plants: [] };
+      const initialData = { plants: [], strains: [] };
       await this.write(initialData);
     }
     this.initialized = true;
@@ -32,7 +32,11 @@ class DataStore {
 
   async getState() {
     const data = await this.read();
-    return data;
+    return {
+      ...data,
+      plants: Array.isArray(data.plants) ? data.plants : [],
+      strains: Array.isArray(data.strains) ? data.strains : [],
+    };
   }
 
   async replaceState(nextState) {
@@ -44,6 +48,7 @@ class DataStore {
       ...nextState,
     };
     sanitized.plants = Array.isArray(nextState.plants) ? nextState.plants : [];
+    sanitized.strains = Array.isArray(nextState.strains) ? nextState.strains : [];
 
     await this.write(sanitized);
     return sanitized;
@@ -55,10 +60,21 @@ class DataStore {
     }
 
     const current = await this.read();
+    if (!Array.isArray(current.plants)) {
+      current.plants = [];
+    }
+    if (!Array.isArray(current.strains)) {
+      current.strains = [];
+    }
+
     const merged = { ...current, ...partialState };
 
     if (Object.prototype.hasOwnProperty.call(partialState, 'plants')) {
       merged.plants = Array.isArray(partialState.plants) ? partialState.plants : current.plants;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(partialState, 'strains')) {
+      merged.strains = Array.isArray(partialState.strains) ? partialState.strains : current.strains;
     }
 
     await this.write(merged);
@@ -67,6 +83,9 @@ class DataStore {
 
   async listPlants() {
     const data = await this.read();
+    if (!Array.isArray(data.plants)) {
+      data.plants = [];
+    }
     return data.plants;
   }
 
@@ -77,6 +96,9 @@ class DataStore {
 
   async createPlant(plant) {
     const data = await this.read();
+    if (!Array.isArray(data.plants)) {
+      data.plants = [];
+    }
     data.plants.push(plant);
     await this.write(data);
     return plant;
@@ -84,6 +106,9 @@ class DataStore {
 
   async updatePlant(id, updates) {
     const data = await this.read();
+    if (!Array.isArray(data.plants)) {
+      data.plants = [];
+    }
     const index = data.plants.findIndex((plant) => plant.id === id);
     if (index === -1) {
       return null;
@@ -97,11 +122,67 @@ class DataStore {
 
   async deletePlant(id) {
     const data = await this.read();
+    if (!Array.isArray(data.plants)) {
+      data.plants = [];
+    }
     const index = data.plants.findIndex((plant) => plant.id === id);
     if (index === -1) {
       return false;
     }
     data.plants.splice(index, 1);
+    await this.write(data);
+    return true;
+  }
+
+  async listStrains() {
+    const data = await this.read();
+    if (!Array.isArray(data.strains)) {
+      data.strains = [];
+    }
+    return data.strains;
+  }
+
+  async getStrainById(id) {
+    const strains = await this.listStrains();
+    return strains.find((strain) => strain.id === id) || null;
+  }
+
+  async createStrain(strain) {
+    const data = await this.read();
+    if (!Array.isArray(data.strains)) {
+      data.strains = [];
+    }
+    data.strains.push(strain);
+    await this.write(data);
+    return strain;
+  }
+
+  async updateStrain(id, updates) {
+    const data = await this.read();
+    if (!Array.isArray(data.strains)) {
+      data.strains = [];
+    }
+    const index = data.strains.findIndex((strain) => strain.id === id);
+    if (index === -1) {
+      return null;
+    }
+    const existing = data.strains[index];
+    const updated = { ...existing, ...updates, id };
+    data.strains[index] = updated;
+    await this.write(data);
+    return updated;
+  }
+
+  async deleteStrain(id) {
+    const data = await this.read();
+    if (!Array.isArray(data.strains)) {
+      data.strains = [];
+    }
+    const index = data.strains.findIndex((strain) => strain.id === id);
+    if (index === -1) {
+      return false;
+    }
+    data.strains.splice(index, 1);
     await this.write(data);
     return true;
   }

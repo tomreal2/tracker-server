@@ -161,6 +161,112 @@ app.options('/state', (req, res) => {
   res.status(204).send('');
 });
 
+app.get('/strains', async (req, res, next) => {
+  try {
+    const strains = await store.listStrains();
+    res.json({ data: strains });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/strains/:id', async (req, res, next) => {
+  try {
+    const strain = await store.getStrainById(req.params.id);
+    if (!strain) {
+      res.status(404).json({ error: 'Strain not found' });
+      return;
+    }
+    res.json({ data: strain });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/strains', async (req, res) => {
+  const {
+    name,
+    type = '',
+    lineage = '',
+    notes = '',
+  } = req.body || {};
+
+  if (!name || typeof name !== 'string') {
+    res.status(400).json({ error: 'Strain name is required' });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const newStrain = {
+    id: crypto.randomUUID(),
+    name: name.trim(),
+    type: type ? String(type).trim() : '',
+    lineage: lineage ? String(lineage).trim() : '',
+    notes: notes ? String(notes).trim() : '',
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  try {
+    await store.createStrain(newStrain);
+    res.status(201).json({ data: newStrain });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create strain' });
+  }
+});
+
+app.put('/strains/:id', async (req, res) => {
+  const updates = req.body || {};
+  const allowedFields = ['name', 'type', 'lineage', 'notes'];
+  const sanitizedUpdates = {};
+
+  for (const field of allowedFields) {
+    if (Object.prototype.hasOwnProperty.call(updates, field)) {
+      const value = updates[field];
+      sanitizedUpdates[field] = value == null ? null : String(value).trim();
+    }
+  }
+
+  if (Object.keys(sanitizedUpdates).length === 0) {
+    res.status(400).json({ error: 'No valid fields provided for update' });
+    return;
+  }
+
+  sanitizedUpdates.updatedAt = new Date().toISOString();
+
+  try {
+    const updatedStrain = await store.updateStrain(req.params.id, sanitizedUpdates);
+    if (!updatedStrain) {
+      res.status(404).json({ error: 'Strain not found' });
+      return;
+    }
+    res.json({ data: updatedStrain });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update strain' });
+  }
+});
+
+app.delete('/strains/:id', async (req, res) => {
+  try {
+    const deleted = await store.deleteStrain(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ error: 'Strain not found' });
+      return;
+    }
+    res.status(204).send('');
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete strain' });
+  }
+});
+
+app.options('/strains', (req, res) => {
+  res.status(204).send('');
+});
+
+app.options('/strains/:id', (req, res) => {
+  res.status(204).send('');
+});
+
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   const status = err.status || err.statusCode || 500;
   const message = err.message || 'Unexpected server error';

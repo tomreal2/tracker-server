@@ -6,7 +6,7 @@ This repository contains a lightweight RESTful backend for the Tracker plant man
 
 - Express-based REST server exposed via familiar middleware patterns.
 - App state endpoints (`/state`) for retrieving and persisting the Tracker UI snapshot.
-- CRUD endpoints for plants (`/plants`).
+- CRUD endpoints for plants (`/plants`) and strains (`/strains`).
 - File-based JSON datastore to keep the application lightweight and easy to deploy.
 - Built-in CORS support for communication with the Tracker React front end.
 
@@ -34,7 +34,7 @@ All endpoints return JSON responses.
 Returns a simple health check payload.
 
 ### `GET /state`
-Returns the full persisted application state, including the list of plants.
+Returns the full persisted application state, including the lists of plants and strains.
 
 ### `PUT /state`
 Replaces the stored state. The request body should contain an object shaped like the Tracker application's state tree (at minimum, provide a `plants` array).
@@ -56,5 +56,20 @@ Updates an existing plant. Supply any combination of the supported fields in the
 
 ### `DELETE /plants/:id`
 Removes a plant from the datastore.
+
+### `GET /strains`
+Retrieves all saved strains.
+
+### `GET /strains/:id`
+Fetches a single strain by its identifier.
+
+### `POST /strains`
+Creates a new strain. Provide at least a `name`, and optionally include `type`, `lineage`, or `notes`.
+
+### `PUT /strains/:id`
+Updates an existing strain with any of the supported fields.
+
+### `DELETE /strains/:id`
+Removes a strain from the datastore.
 
 All write operations update `data/plants.json`, which can be committed or backed up to persist state across deployments.
