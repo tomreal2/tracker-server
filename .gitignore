@@ -1,2 +1,8 @@
+# Ignore Node dependencies except the vendored express shim
 node_modules/
+!node_modules
+!node_modules/express
+!node_modules/express/index.js
+!node_modules/express/package.json
 
+npm-debug.log*
