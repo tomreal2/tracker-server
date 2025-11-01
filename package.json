@@ -1,0 +1,21 @@
+{
+  "name": "tracker-server",
+  "version": "1.0.0",
+  "description": "RESTful backend for the tracker plant management app",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "keywords": [
+    "plants",
+    "tracker",
+    "rest",
+    "server"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs"
+}
